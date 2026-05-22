@@ -85,18 +85,21 @@ def run_send(config: dict, store: LeadStore, dry_run: bool = False) -> dict:
         email = lead.get("Email", "")
         print(f"[{i}/{len(batch)}] {name} <{email}>")
 
+        if dry_run:
+            # Show what the LLM prompt looks like without making an API call
+            from compose.composer import _build_prompt
+            prompt = _build_prompt(lead, config)
+            print(f"  [DRY RUN] Prompt preview:\n{prompt[:400]}...")
+            print(f"  [DRY RUN] (no API call made)")
+            results["skipped"] += 1
+            continue
+
         # Generate email
         try:
             subject, html_body = generate_email(lead, config)
         except Exception as e:
             print(f"  COMPOSE ERROR — {e}")
             results["failed"] += 1
-            continue
-
-        if dry_run:
-            print(f"  [DRY RUN] Subject: {subject}")
-            print(f"  [DRY RUN] Body preview: {html_body[:120]}...")
-            results["skipped"] += 1
             continue
 
         # CRM sync (best-effort)

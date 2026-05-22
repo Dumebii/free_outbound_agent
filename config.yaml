@@ -4,22 +4,23 @@ company:
   description: |
     One paragraph describing what your product does, who it's for,
     and the core problem it solves. The LLM uses this to write emails.
+    Be specific — vague descriptions produce vague emails.
   from_name: "Jane Doe"
-  from_email: "jane@acme.com"
+  from_email: "jane@yourdomain.com"
 
-# ── Links to include in emails (LLM picks the most relevant 1-2) ──────────
+# ── Links included in emails (LLM picks the most relevant 1-2) ────────────
 links:
   - label: "demo"
-    url: "https://acme.com/demo"
+    url: "https://yourproduct.com/demo"
   - label: "blog post"
-    url: "https://acme.com/blog/how-it-works"
+    url: "https://yourproduct.com/blog/how-it-works"
   - label: "tutorial"
-    url: "https://acme.com/tutorial"
+    url: "https://yourproduct.com/tutorial"
 
 # ── Email generation ───────────────────────────────────────────────────────
 compose:
   provider: claude          # claude | openai
-  model: claude-opus-4-5    # claude-opus-4-5 | gpt-4o | etc.
+  model: claude-opus-4-5    # claude-opus-4-5 | gpt-4o | gpt-4o-mini | etc.
   tone: |
     Direct and conversational. No corporate speak. Short sentences.
     Sound like a smart founder writing personally, not a marketing team.
@@ -72,7 +73,7 @@ icp:
 sources:
   github:
     enabled: true
-    token_env: GITHUB_TOKEN
+    token_env: GITHUB_TOKEN   # name of the env var holding your PAT
     min_followers: 100
     queries:
       - '"developer advocate" in:bio'
@@ -93,16 +94,16 @@ sources:
 
 # ── How to send ───────────────────────────────────────────────────────────
 send:
-  provider: zohomail        # zohomail | gmail
+  provider: smtp            # smtp | gmail | zohomail
   daily_limit: 50
   delay_seconds: 60
 
 # ── CRM sync (optional) ───────────────────────────────────────────────────
 crm:
-  enabled: true
-  provider: zohocrm         # zohocrm | none
+  enabled: false
+  provider: none            # hubspot | zohocrm | none
 
 # ── Lead storage ──────────────────────────────────────────────────────────
 store:
-  leads_file: leads.csv
-  sent_file: sent.csv       # tracks who has been emailed to avoid resends
+  leads_file: leads.csv     # all discovered leads
+  sent_file: sent.csv       # tracks sent emails to avoid duplicates

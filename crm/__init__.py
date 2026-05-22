@@ -1,6 +1,7 @@
 from .zohocrm import ZohoCRM
+from .hubspot import HubSpotCRM
 
-__all__ = ["ZohoCRM"]
+__all__ = ["ZohoCRM", "HubSpotCRM"]
 
 
 def get_crm(config: dict):
@@ -8,10 +9,14 @@ def get_crm(config: dict):
     crm_cfg  = config.get("crm", {})
     if not crm_cfg.get("enabled", False):
         return None
-    provider = crm_cfg.get("provider", "zohocrm").lower()
+    provider = crm_cfg.get("provider", "none").lower()
     if provider == "zohocrm":
         return ZohoCRM()
+    elif provider == "hubspot":
+        return HubSpotCRM()
     elif provider == "none":
         return None
     else:
-        raise ValueError(f"Unknown CRM provider: {provider!r}")
+        raise ValueError(
+            f"Unknown CRM provider: {provider!r}. Use 'hubspot', 'zohocrm', or 'none'."
+        )

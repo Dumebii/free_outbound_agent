@@ -60,21 +60,25 @@ send:
   delay_seconds: 60       # pause between sends
 ```
 
-### 4. Run
+### 4. Your first run
+
+Do these in order — don't skip straight to sending.
 
 ```bash
-# Full pipeline: scrape new leads, then send today's batch
-python pipeline.py
-
-# Just discover leads (no emails sent)
+# 1. Discover leads and write them to leads.csv (no emails sent)
 python pipeline.py --scrape-only
 
-# Just send to existing leads (skip scraping)
-python pipeline.py --send-only
+# 2. Open leads.csv and review who was found before anything goes out
 
-# Preview emails without sending anything
+# 3. Preview what emails would look like — shows the LLM prompt per lead,
+#    no API calls made, completely free
 python pipeline.py --dry-run
+
+# 4. When you're happy, send today's batch
+python pipeline.py --send-only
 ```
+
+After that, running `python pipeline.py` daily handles both (scrape new leads + send batch).
 
 ---
 
@@ -89,18 +93,20 @@ outbound-agent/
 ├── requirements.txt
 │
 ├── sources/             # Lead discovery
-│   ├── github.py        # Searches GitHub by bio keywords
+│   ├── github.py        # Searches GitHub by bio keywords + follower count
 │   └── devto.py         # Scrapes Dev.to by tag, resolves emails via GitHub
 │
 ├── compose/
-│   └── composer.py      # LLM prompt + Claude/OpenAI call → subject + body
+│   └── composer.py      # LLM prompt → Claude or OpenAI → subject + HTML body
 │
 ├── send/
-│   ├── zohomail.py      # Zoho Mail REST API
-│   └── gmail.py         # Gmail SMTP
+│   ├── smtp.py          # Generic SMTP (Fastmail, Namecheap, Mailgun, SendGrid, etc.)
+│   ├── gmail.py         # Gmail SMTP (app password)
+│   └── zohomail.py      # Zoho Mail REST API
 │
 ├── crm/
-│   └── zohocrm.py       # Zoho CRM lead upsert
+│   ├── hubspot.py       # HubSpot CRM (free tier supported)
+│   └── zohocrm.py       # Zoho CRM
 │
 └── store/
     └── leads.py         # CSV-backed lead store + sent tracking
@@ -178,7 +184,7 @@ Dev.to doesn't expose email addresses directly. The agent resolves them through 
 
 | Field | Options | Description |
 |---|---|---|
-| `provider` | `zohomail`, `gmail` | Email sending backend |
+| `provider` | `smtp`, `gmail`, `zohomail` | Email sending backend |
 | `daily_limit` | integer | Max emails per run — stays under provider limits |
 | `delay_seconds` | integer | Pause between sends — lower values increase spam risk |
 
@@ -195,7 +201,7 @@ Dev.to doesn't expose email addresses directly. The agent resolves them through 
 | Field | Options | Description |
 |---|---|---|
 | `enabled` | `true` / `false` | Toggle CRM sync on/off |
-| `provider` | `zohocrm`, `none` | CRM backend |
+| `provider` | `hubspot`, `zohocrm`, `none` | CRM backend |
 
 ---
 
@@ -230,6 +236,27 @@ curl "https://mail.zoho.com/api/accounts" \
 
 5. Add `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_MAIL_REFRESH_TOKEN`, `ZOHO_MAIL_ACCOUNT_ID` to `.env`
 
+### Generic SMTP (if `send.provider: smtp`) — recommended default
+
+Works with any email provider. Add these to `.env`:
+
+```
+SMTP_HOST=smtp.yourdomain.com
+SMTP_PORT=465
+SMTP_USER=you@yourdomain.com
+SMTP_PASSWORD=your-password
+```
+
+Common provider settings:
+
+| Provider | Host | Port |
+|---|---|---|
+| Fastmail | smtp.fastmail.com | 465 |
+| Namecheap | mail.privateemail.com | 465 |
+| Zoho Mail | smtp.zoho.com | 465 |
+| SendGrid | smtp.sendgrid.net | 587 (user: `apikey`, pass: SG.xxx key) |
+| Mailgun | smtp.mailgun.org | 587 |
+
 ### Gmail (if `send.provider: gmail`)
 
 1. Enable 2FA on your Google account
@@ -242,7 +269,15 @@ curl "https://mail.zoho.com/api/accounts" \
 - **Claude:** Get an API key at [console.anthropic.com](https://console.anthropic.com) → add as `ANTHROPIC_API_KEY`
 - **OpenAI:** Get an API key at [platform.openai.com](https://platform.openai.com) → add as `OPENAI_API_KEY`
 
-### Zoho CRM (optional)
+### HubSpot CRM (if `crm.provider: hubspot`)
+
+1. In HubSpot, go to **Settings → Integrations → Private Apps**
+2. Create a new private app with scopes: `crm.objects.contacts.write`
+3. Copy the token and add as `HUBSPOT_API_KEY` to `.env`
+
+Free tier works — no paid HubSpot plan required.
+
+### Zoho CRM (if `crm.provider: zohocrm`)
 
 1. Go to [api-console.zoho.com](https://api-console.zoho.com) → **Self Client**
 2. Generate a code with scope: `ZohoCRM.modules.ALL`
