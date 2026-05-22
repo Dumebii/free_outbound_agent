@@ -1,0 +1,108 @@
+# ── Who you are ───────────────────────────────────────────────────────────
+company:
+  name: "Acme Inc."
+  description: |
+    One paragraph describing what your product does, who it's for,
+    and the core problem it solves. The LLM uses this to write emails.
+  from_name: "Jane Doe"
+  from_email: "jane@acme.com"
+
+# ── Links to include in emails (LLM picks the most relevant 1-2) ──────────
+links:
+  - label: "demo"
+    url: "https://acme.com/demo"
+  - label: "blog post"
+    url: "https://acme.com/blog/how-it-works"
+  - label: "tutorial"
+    url: "https://acme.com/tutorial"
+
+# ── Email generation ───────────────────────────────────────────────────────
+compose:
+  provider: claude          # claude | openai
+  model: claude-opus-4-5    # claude-opus-4-5 | gpt-4o | etc.
+  tone: |
+    Direct and conversational. No corporate speak. Short sentences.
+    Sound like a smart founder writing personally, not a marketing team.
+  banned_words:
+    - leverage
+    - synergy
+    - delve
+    - robust
+    - seamless
+    - game-changer
+    - revolutionize
+    - cutting-edge
+    - innovative
+    - utilize
+
+# ── Who you want to reach ─────────────────────────────────────────────────
+icp:
+  segments:
+    - name: devrel
+      keywords:
+        - developer advocate
+        - devrel
+        - developer evangelist
+        - developer relations
+    - name: techwriter
+      keywords:
+        - technical writer
+        - tech writer
+    - name: educator
+      keywords:
+        - educator
+        - teacher
+        - instructor
+        - teaching
+    - name: founder
+      keywords:
+        - founder
+        - ceo
+        - co-founder
+        - indie hacker
+        - bootstrapped
+        - solopreneur
+    - name: newsletter
+      keywords:
+        - newsletter
+        - substack
+        - writing about
+
+# ── Where to find leads ───────────────────────────────────────────────────
+sources:
+  github:
+    enabled: true
+    token_env: GITHUB_TOKEN
+    min_followers: 100
+    queries:
+      - '"developer advocate" in:bio'
+      - '"technical writer" in:bio'
+      - '"newsletter" in:bio'
+      - '"founder" "building" in:bio'
+      - '"indie hacker" in:bio'
+
+  devto:
+    enabled: true
+    tags:
+      - devrel
+      - technicalwriting
+      - newsletter
+      - indiehacker
+      - startup
+    min_reactions: 20
+
+# ── How to send ───────────────────────────────────────────────────────────
+send:
+  provider: zohomail        # zohomail | gmail
+  daily_limit: 50
+  delay_seconds: 60
+
+# ── CRM sync (optional) ───────────────────────────────────────────────────
+crm:
+  enabled: true
+  provider: zohocrm         # zohocrm | none
+
+# ── Lead storage ──────────────────────────────────────────────────────────
+store:
+  leads_file: leads.csv
+  sent_file: sent.csv       # tracks who has been emailed to avoid resends
