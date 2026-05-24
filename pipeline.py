@@ -14,7 +14,7 @@ import argparse
 import yaml
 from dotenv import load_dotenv
 
-from sources import GitHubSource, DevToSource
+from sources import GitHubSource, DevToSource, ProductHuntSource
 from compose import generate_email
 from send    import get_sender
 from crm     import get_crm
@@ -53,6 +53,13 @@ def run_scrape(config: dict, store: LeadStore) -> int:
         found = devto.scrape(seen_emails, seen_usernames)
         new_leads.extend(found)
         print(f"[devto] +{len(found)} new leads")
+
+    if sources_cfg.get("producthunt", {}).get("enabled", False):
+        print("\n=== Product Hunt ===")
+        ph    = ProductHuntSource(config)
+        found = ph.scrape(seen_emails, seen_usernames)
+        new_leads.extend(found)
+        print(f"[producthunt] +{len(found)} new leads")
 
     store.append_leads(new_leads)
     print(f"\nTotal new leads discovered: {len(new_leads)}")

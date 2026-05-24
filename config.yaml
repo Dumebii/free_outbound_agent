@@ -92,6 +92,21 @@ sources:
       - startup
     min_reactions: 20
 
+  producthunt:
+    enabled: false            # set to true once you have a PH developer token
+    token_env: PRODUCTHUNT_TOKEN
+    # Topic slugs to search — see producthunt.com/topics for the full list
+    topics:
+      - developer-tools
+      - artificial-intelligence
+      - productivity
+      - marketing
+      - no-code
+      - open-source
+      - developer-tools
+    min_votes: 10             # minimum upvotes for a product to be included
+    pages_per_topic: 5        # pages of 50 posts per topic (more = more leads)
+
 # ── How to send ───────────────────────────────────────────────────────────
 send:
   provider: smtp            # smtp | gmail | zohomail
