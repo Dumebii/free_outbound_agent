@@ -1,4 +1,4 @@
-# outbound-agent
+# free_outbound_email_agent
 
 An open-source AI-powered outbound email agent. Point it at your ICP, describe your product, and it finds prospects, writes genuinely personalized emails using an LLM, syncs them to your CRM, and sends — on a schedule you control.
 
@@ -9,10 +9,10 @@ No SaaS subscription. No per-seat pricing. Runs from your own machine or a serve
 ## What it does
 
 ```
-1. Discover   →  scrapes GitHub and Dev.to for people matching your ICP
+1. Discover   →  scrapes GitHub, Dev.to, and Product Hunt for people matching your ICP
 2. Compose    →  uses Claude or GPT-4 to write a personalized email per lead
-3. Send       →  delivers via Zoho Mail REST API or Gmail SMTP
-4. Track      →  logs leads to Zoho CRM, marks sent to avoid duplicates
+3. Send       →  delivers via SMTP, Gmail, or Zoho Mail REST API
+4. Track      →  logs leads to HubSpot or Zoho CRM, marks sent to avoid duplicates
 ```
 
 Every part is swappable. Don't use Zoho? Swap in Gmail. Don't want Claude? Use OpenAI. The config file controls everything — no code changes required for most setups.
@@ -24,8 +24,8 @@ Every part is swappable. Don't use Zoho? Swap in Gmail. Don't want Claude? Use O
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-username/outbound-agent.git
-cd outbound-agent
+git clone https://github.com/Dumebii/free_outbound_email_agent.git
+cd free_outbound_email_agent
 pip install -r requirements.txt
 ```
 
@@ -85,7 +85,7 @@ After that, running `python pipeline.py` daily handles both (scrape new leads + 
 ## Project structure
 
 ```
-outbound-agent/
+free_outbound_email_agent/
 ├── pipeline.py          # Main orchestrator — run this
 ├── config.yaml          # Your ICP, tone, provider choices
 ├── .env                 # API keys (never committed)
@@ -94,7 +94,8 @@ outbound-agent/
 │
 ├── sources/             # Lead discovery
 │   ├── github.py        # Searches GitHub by bio keywords + follower count
-│   └── devto.py         # Scrapes Dev.to by tag, resolves emails via GitHub
+│   ├── devto.py         # Scrapes Dev.to by tag, resolves emails via GitHub
+│   └── producthunt.py   # Scrapes PH makers via GraphQL API, resolves emails via GitHub
 │
 ├── compose/
 │   └── composer.py      # LLM prompt → Claude or OpenAI → subject + HTML body
@@ -180,6 +181,18 @@ Email extraction: tries the public profile email first, falls back to commit his
 
 Dev.to doesn't expose email addresses directly. The agent resolves them through linked GitHub accounts.
 
+### `sources.producthunt`
+
+| Field | Description |
+|---|---|
+| `enabled` | `true` / `false` |
+| `token_env` | Name of the env var holding your PH developer token (default: `PRODUCTHUNT_TOKEN`) |
+| `topics` | PH topic slugs to search — see [producthunt.com/topics](https://producthunt.com/topics) |
+| `min_votes` | Minimum upvotes for a product to qualify |
+| `pages_per_topic` | Pages of 50 posts to scan per topic — more pages = more leads |
+
+> **API note:** The free PH developer token masks most team-member fields; only the *primary* maker of each post gets a real username. Increase `pages_per_topic` and add more topics to compensate for the lower yield per page.
+
 ### `send`
 
 | Field | Options | Description |
@@ -206,6 +219,14 @@ Dev.to doesn't expose email addresses directly. The agent resolves them through 
 ---
 
 ## Credentials setup
+
+### Product Hunt (if `sources.producthunt.enabled: true`)
+
+1. Go to [producthunt.com/v2/oauth/applications](https://www.producthunt.com/v2/oauth/applications)
+2. Create an application → scroll down to **Developer Token**
+3. Copy the token and add as `PRODUCTHUNT_TOKEN` to `.env`
+
+No OAuth flow needed — the developer token is a single static value.
 
 ### GitHub (required for lead discovery)
 
@@ -374,6 +395,7 @@ Register it in `send/__init__.py`'s `get_sender()` factory.
 
 - **Dev.to email resolution** requires leads to have a linked GitHub account with a public email or commit history. Authors without GitHub won't be included.
 - **GitHub search** returns at most 1,000 results per query. Use multiple targeted queries rather than broad ones.
+- **Product Hunt developer token** only exposes the primary maker per product — other team members are masked by the API. Yield is lower than GitHub/Dev.to; use more topics and pages to build volume.
 - **Sending limits** depend entirely on your email provider. Start conservative (50/day, 60s delay) and increase only after the account is warmed up.
 - **LLM costs** apply per email generated. At ~400 tokens per call, 50 emails/day costs roughly $0.30–$1.50/day depending on model.
 
