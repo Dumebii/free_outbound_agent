@@ -146,3 +146,28 @@ crm:
 store:
   leads_file: leads.csv     # all discovered leads
   sent_file: sent.csv       # tracks sent emails to avoid duplicates
+
+# ── LinkedIn outreach (semi-automated, manual send) ────────────────────────
+# Messages are printed as a copy-paste queue — you send them manually on LinkedIn.
+# LinkedIn recommends <=20 connection requests/day to avoid account restrictions.
+#
+# Run: python linkedin_pipeline.py --queue
+#
+linkedin:
+  enabled: false
+  daily_limit: 20           # max connection requests per day (LinkedIn recommends <=20)
+  note_max_chars: 300       # LinkedIn's hard limit for connection request notes
+
+  store:
+    sent_file: linkedin_sent.csv
+    tracker_file: linkedin_daily_tracker.json
+
+  sequences:
+    enabled: true
+    steps:
+      - step: 1
+        delay_days: 0       # connection request (sent via --queue)
+      - step: 2
+        delay_days: 3       # follow-up DM after connecting (>=3 days after request)
+      - step: 3
+        delay_days: 7       # closing DM (>=7 days after step 2)

@@ -102,6 +102,98 @@ def _call_openai(prompt: str, model: str) -> tuple[str, str]:
     return data["subject"], data["body"]
 
 
+def _build_linkedin_prompt(lead: dict, config: dict, step: int, note_max_chars: int = 300) -> str:
+    company  = config["company"]
+    compose  = config["compose"]
+    banned   = ", ".join(f'"{w}"' for w in compose.get("banned_words", []))
+    links    = config.get("links", [])
+    link_list = "\n".join(f'- {l["label"]}: {l["url"]}' for l in links)
+
+    first = lead.get("Name", "").strip().split()[0] if lead.get("Name") else "there"
+
+    if step == 1:
+        return (
+            f"Write a LinkedIn connection request note for {lead.get('Name', '')}.\n\n"
+            f"About {company['name']}: {company['description'].strip()}\n\n"
+            f"About the recipient:\n"
+            f"- Bio: {lead.get('Bio', '(no bio)')}\n"
+            f"- Company: {lead.get('Company', '(independent)')}\n\n"
+            f"Requirements:\n"
+            f"- MUST be under {note_max_chars} characters total (hard LinkedIn limit)\n"
+            f"- Start with 'Hi {first},'\n"
+            f"- End with 'Would love to connect.'\n"
+            f"- Personal and warm — reference something specific from their bio\n"
+            f"- Do NOT use these words: {banned}\n"
+            f"- No emojis, no URLs\n"
+            f"- Return ONLY the note text, nothing else"
+        )
+    elif step == 2:
+        link = links[0]["url"] if links else ""
+        return (
+            f"Write a LinkedIn DM for {lead.get('Name', '')} who just accepted a connection request "
+            f"from {company['from_name']} at {company['name']}.\n\n"
+            f"About {company['name']}: {company['description'].strip()}\n\n"
+            f"About the recipient:\n"
+            f"- Bio: {lead.get('Bio', '(no bio)')}\n"
+            f"- Company: {lead.get('Company', '(independent)')}\n\n"
+            f"Requirements:\n"
+            f"- 2-3 short sentences max\n"
+            f"- Start with 'Hey {first} —'\n"
+            f"- Include one link naturally: {link}\n"
+            f"- Conversational, no hard sell\n"
+            f"- Do NOT use these words: {banned}\n"
+            f"- No emojis\n"
+            f"- Return ONLY the message text"
+        )
+    else:  # step 3 — closing
+        return (
+            f"Write a short closing LinkedIn DM for {lead.get('Name', '')} who connected with "
+            f"{company['from_name']} at {company['name']} but hasn't replied to the follow-up.\n\n"
+            f"Requirements:\n"
+            f"- 2 sentences max\n"
+            f"- Start with 'Hey {first} —'\n"
+            f"- Leave the door open without pressure\n"
+            f"- Do NOT use these words: {banned}\n"
+            f"- No emojis\n"
+            f"- Return ONLY the message text"
+        )
+
+
+def generate_linkedin_message(lead: dict, config: dict, step: int = 1) -> str:
+    """
+    Generate a LinkedIn message for a lead.
+
+    step 1 = connection request note (<=300 chars)
+    step 2 = first DM after connecting
+    step 3 = closing DM
+    """
+    compose  = config["compose"]
+    provider = compose.get("provider", "claude").lower()
+    model    = compose.get("model", "claude-haiku-4-5-20251001")
+    note_max = config.get("linkedin", {}).get("note_max_chars", 300)
+    prompt   = _build_linkedin_prompt(lead, config, step=step, note_max_chars=note_max)
+
+    if provider == "claude":
+        import anthropic
+        client  = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        message = client.messages.create(
+            model=model,
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text.strip()
+    elif provider == "openai":
+        from openai import OpenAI
+        client   = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()
+    else:
+        raise ValueError(f"Unknown compose provider: {provider!r}. Use 'claude' or 'openai'.")
+
+
 def generate_email(lead: dict, config: dict, step: int = 1) -> tuple[str, str]:
     """
     Generate a personalized email for a lead.
