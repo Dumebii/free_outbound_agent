@@ -326,6 +326,49 @@ python pipeline.py --dry-run
 
 ---
 
+## Sequences (multi-step follow-ups)
+
+Enable follow-up sequences in `config.yaml`:
+
+```yaml
+sequences:
+  enabled: true
+  steps:
+    - step: 1
+      delay_days: 0       # initial outreach — sent by pipeline.py --send-only
+    - step: 2
+      delay_days: 3       # follow-up fires 3+ days after step 1
+      subject_hint: "new angle worth sharing"
+    - step: 3
+      delay_days: 7       # break-up fires 7+ days after step 2
+      subject_hint: "closing the loop"
+```
+
+Then add follow-ups to your daily run:
+
+```bash
+# Send initial outreach (step 1)
+python pipeline.py --send-only
+
+# 3 days later — send step-2 follow-ups to anyone who hasn't replied
+python pipeline.py --follow-up
+
+# 7 days later — send step-3 break-ups
+python pipeline.py --follow-up
+```
+
+The LLM automatically adjusts tone per step — step 1 is a cold intro, step 2 adds a new angle, step 3 is a short "closing the loop" note.
+
+**Marking replies** (removes the lead from the sequence):
+
+```bash
+python pipeline.py --mark-replied user@example.com
+```
+
+Sent history is tracked in `sent.csv` with timestamps, step numbers, and replied state. Delete `sent.csv` to reset everything.
+
+---
+
 ## Deduplication and sent tracking
 
 - `leads.csv` — every discovered lead. New leads are appended; existing emails are skipped.

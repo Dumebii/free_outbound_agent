@@ -2,15 +2,53 @@ import os
 import json
 
 
-def _build_prompt(lead: dict, config: dict) -> str:
+def _build_prompt(lead: dict, config: dict, step: int = 1) -> str:
     company = config["company"]
     compose = config["compose"]
     links   = config.get("links", [])
 
-    banned = ", ".join(f'"{w}"' for w in compose.get("banned_words", []))
+    banned    = ", ".join(f'"{w}"' for w in compose.get("banned_words", []))
     link_list = "\n".join(f'- {l["label"]}: {l["url"]}' for l in links)
 
-    return f"""You are writing a cold outreach email on behalf of {company["name"]}.
+    # ── Step-specific instructions ─────────────────────────────────────────
+    if step == 1:
+        task = f"""Write a short, personalized cold email that:
+1. Opens with one specific, genuine observation about this person (based on their bio or work — not generic flattery)
+2. Connects their work to a real problem {company["name"]} solves
+3. Ends with ONE low-friction CTA using one of the links below
+4. Reads like a smart founder wrote it personally — not a marketing team"""
+
+        constraints = f"""- Maximum 120 words in the body
+- Do NOT use these words or phrases: {banned}
+- Do NOT open with "I hope this email finds you well" or any variant
+- Do NOT use bullet points or numbered lists in the email body
+- Do NOT mention the recipient's follower count
+- Use plain paragraphs separated by blank lines"""
+
+    else:
+        # Follow-up steps — shorter, warmer, reference the previous email
+        seq_steps  = config.get("sequences", {}).get("steps", [])
+        step_cfg   = next((s for s in seq_steps if s.get("step") == step), {})
+        hint       = step_cfg.get("subject_hint", f"follow-up")
+        step_label = {2: "first follow-up", 3: "second follow-up", 4: "final note"}.get(step, f"follow-up #{step-1}")
+
+        task = f"""Write a {step_label} email to someone who received an initial cold email from {company["name"]} but hasn't replied yet.
+
+This is NOT a new introduction — they already know who you are. Your goal is to:
+1. Be brief (3–5 sentences max)
+2. Add a new angle, insight, or piece of value — don't just say "following up"
+3. Keep the tone warm and human — no pressure, no guilt
+4. End with one low-friction option from the links below
+5. Subject hint: "{hint}" """
+
+        constraints = f"""- Maximum 80 words in the body
+- Do NOT repeat the original pitch word-for-word
+- Do NOT use these words or phrases: {banned}
+- Do NOT open with "Just wanted to follow up" or "Bumping this up"
+- Do NOT use bullet points
+- One short paragraph is ideal"""
+
+    return f"""You are writing on behalf of {company["name"]}.
 
 About {company["name"]}:
 {company["description"].strip()}
@@ -19,26 +57,16 @@ About the recipient:
 - Name: {lead.get("Name", "")}
 - Bio: {lead.get("Bio", "(no bio)")}
 - Company/Org: {lead.get("Company", "(independent)")}
-- Followers: {lead.get("Followers", 0)}
 - Profile: {lead.get("Profile", "")}
 
-Write a short, personalized cold email that:
-1. Opens with one specific, genuine observation about this person (based on their bio or work — not generic flattery)
-2. Connects their work to a real problem {company["name"]} solves
-3. Ends with ONE low-friction CTA using one of the links below
-4. Reads like a smart founder wrote it personally — not a marketing team
+{task}
 
 Tone: {compose.get("tone", "Direct and conversational.").strip()}
 
 Hard constraints:
-- Maximum 120 words in the body
-- Do NOT use these words or phrases: {banned}
-- Do NOT open with "I hope this email finds you well" or any variant
-- Do NOT use bullet points or numbered lists in the email body
-- Do NOT mention the recipient's follower count
-- Use plain paragraphs separated by blank lines
+{constraints}
 
-Available links (pick 1-2 that feel natural — do NOT use all of them):
+Available links (pick 1 that feels natural):
 {link_list}
 
 Respond with valid JSON only — no markdown, no explanation:
@@ -56,7 +84,7 @@ def _call_claude(prompt: str, model: str) -> tuple[str, str]:
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = message.content[0].text.strip()
+    raw  = message.content[0].text.strip()
     data = json.loads(raw)
     return data["subject"], data["body"]
 
@@ -69,26 +97,33 @@ def _call_openai(prompt: str, model: str) -> tuple[str, str]:
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )
-    raw = response.choices[0].message.content.strip()
+    raw  = response.choices[0].message.content.strip()
     data = json.loads(raw)
     return data["subject"], data["body"]
 
 
-def generate_email(lead: dict, config: dict) -> tuple[str, str]:
+def generate_email(lead: dict, config: dict, step: int = 1) -> tuple[str, str]:
     """
-    Generate a personalized email for a lead using the configured LLM.
+    Generate a personalized email for a lead.
+
+    Args:
+        lead:   Lead dict (Name, Bio, Company, Profile, etc.)
+        config: Full config.yaml contents
+        step:   Sequence step (1 = initial outreach, 2+ = follow-ups)
 
     Returns:
         (subject, html_body)
     """
-    compose   = config["compose"]
-    provider  = compose.get("provider", "claude").lower()
-    model     = compose.get("model", "claude-opus-4-5")
-    prompt    = _build_prompt(lead, config)
+    compose  = config["compose"]
+    provider = compose.get("provider", "claude").lower()
+    model    = compose.get("model", "claude-opus-4-5")
+    prompt   = _build_prompt(lead, config, step=step)
 
     if provider == "claude":
         return _call_claude(prompt, model)
     elif provider == "openai":
         return _call_openai(prompt, model)
     else:
-        raise ValueError(f"Unknown compose provider: {provider!r}. Use 'claude' or 'openai'.")
+        raise ValueError(
+            f"Unknown compose provider: {provider!r}. Use 'claude' or 'openai'."
+        )
