@@ -75,17 +75,26 @@ def run_send(config: dict, store: LeadStore, dry_run: bool = False) -> dict:
     daily_limit = send_cfg.get("daily_limit", 50)
     delay       = send_cfg.get("delay_seconds", 60)
 
-    all_leads  = store.load_leads()
-    sent_today = store.load_sent()
-    unsent     = [l for l in all_leads if l.get("Email", "").lower() not in sent_today]
+    # Respect shared daily cap — follow-ups already sent today count too
+    seq_cfg          = config.get("sequences", {})
+    follow_up_slots  = seq_cfg.get("follow_up_slots", 0) if seq_cfg.get("enabled") else 0
+    new_outreach_cap = daily_limit - follow_up_slots
+    already_sent     = store.sent_today_count()
+    slots_remaining  = max(0, new_outreach_cap - already_sent)
 
-    batch  = unsent[:daily_limit]
+    all_leads  = store.load_leads()
+    sent_ever  = store.load_sent()
+    unsent     = [l for l in all_leads if l.get("Email", "").lower() not in sent_ever]
+
+    batch  = unsent[:slots_remaining]
     total  = len(all_leads)
     sender = None if dry_run else get_sender(config)
     crm    = None if dry_run else get_crm(config)
 
-    print(f"\n{total} total leads | {len(sent_today)} already sent | {len(unsent)} remaining")
-    print(f"Sending batch of {len(batch)} ({'DRY RUN' if dry_run else f'{delay}s delay'})\n")
+    print(f"\n{total} total leads | {len(sent_ever)} ever contacted | {len(unsent)} remaining")
+    print(f"Daily cap: {daily_limit} total | {follow_up_slots} reserved for follow-ups "
+          f"| {new_outreach_cap} for new outreach | {already_sent} sent today already")
+    print(f"Sending {len(batch)} new outreach emails ({'DRY RUN' if dry_run else f'{delay}s delay'})\n")
 
     results = {"sent": 0, "failed": 0, "skipped": 0}
 
@@ -142,13 +151,30 @@ def run_followup(config: dict, store: LeadStore, dry_run: bool = False) -> dict:
         print("Sequences not enabled. Set sequences.enabled: true in config.yaml")
         return {"sent": 0, "failed": 0}
 
-    steps       = seq_cfg.get("steps", [])
-    all_leads   = store.load_leads()
-    send_cfg    = config.get("send", {})
-    daily_limit = send_cfg.get("daily_limit", 50)
-    delay       = send_cfg.get("delay_seconds", 60)
-    sender      = None if dry_run else get_sender(config)
-    crm         = None if dry_run else get_crm(config)
+    steps            = seq_cfg.get("steps", [])
+    follow_up_slots  = seq_cfg.get("follow_up_slots", 0)
+    all_leads        = store.load_leads()
+    send_cfg         = config.get("send", {})
+    daily_limit      = send_cfg.get("daily_limit", 50)
+    delay            = send_cfg.get("delay_seconds", 60)
+    sender           = None if dry_run else get_sender(config)
+    crm              = None if dry_run else get_crm(config)
+
+    # Shared daily cap: if follow_up_slots set, cap follow-ups at that number;
+    # otherwise use whatever remains of the full daily_limit
+    already_sent    = store.sent_today_count()
+    if follow_up_slots:
+        cap = min(follow_up_slots, max(0, daily_limit - already_sent))
+    else:
+        cap = max(0, daily_limit - already_sent)
+
+    if cap == 0:
+        print(f"Daily limit reached ({daily_limit}/day, {already_sent} already sent). "
+              f"Nothing to send.")
+        return {"sent": 0, "failed": 0}
+
+    print(f"Follow-up cap today: {cap} slots ({already_sent} already sent, "
+          f"limit {daily_limit})\n")
 
     results     = {"sent": 0, "failed": 0}
 
@@ -161,7 +187,7 @@ def run_followup(config: dict, store: LeadStore, dry_run: bool = False) -> dict:
         prev_step  = step - 1
 
         due = store.get_followup_due(all_leads, on_step=prev_step, delay_days=delay_days)
-        remaining  = daily_limit - results["sent"]
+        remaining  = cap - results["sent"]
 
         if not due:
             print(f"\nStep {step}: no leads due yet (need >{delay_days} days since step {prev_step})")
@@ -203,8 +229,8 @@ def run_followup(config: dict, store: LeadStore, dry_run: bool = False) -> dict:
             if results["sent"] < daily_limit:
                 time.sleep(delay)
 
-        if results["sent"] >= daily_limit:
-            print("\nDaily limit reached.")
+        if results["sent"] >= cap:
+            print("\nDaily follow-up cap reached.")
             break
 
     return results

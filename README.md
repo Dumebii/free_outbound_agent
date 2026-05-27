@@ -331,29 +331,41 @@ python pipeline.py --dry-run
 Enable follow-up sequences in `config.yaml`:
 
 ```yaml
+send:
+  daily_limit: 50          # hard cap: total emails per day across ALL steps
+  delay_seconds: 60
+
 sequences:
   enabled: true
+  follow_up_slots: 10      # reserve 10/day for follow-ups; 40 go to new outreach
   steps:
     - step: 1
-      delay_days: 0       # initial outreach — sent by pipeline.py --send-only
+      delay_days: 0        # initial outreach (sent by --send-only)
     - step: 2
-      delay_days: 3       # follow-up fires 3+ days after step 1
+      delay_days: 3        # fires 3+ days after step 1
       subject_hint: "new angle worth sharing"
     - step: 3
-      delay_days: 7       # break-up fires 7+ days after step 2
+      delay_days: 7        # fires 7+ days after step 2
       subject_hint: "closing the loop"
 ```
+
+**How the daily cap works:**
+- `daily_limit: 50` is the hard ceiling for the whole day
+- `follow_up_slots: 10` reserves 10 of those for follow-ups; new outreach gets the other 40
+- Both commands read from `sent.csv` timestamps — no double-counting, no overages
+- If you skip `follow_up_slots`, follow-ups and new outreach compete for the same pool (follow-ups go first)
 
 Then add follow-ups to your daily run:
 
 ```bash
-# Send initial outreach (step 1)
+# Send initial outreach (step 1) — uses up to 40 slots
 python pipeline.py --send-only
 
-# 3 days later — send step-2 follow-ups to anyone who hasn't replied
+# 3 days later — follow-ups use their reserved 10 slots
 python pipeline.py --follow-up
 
-# 7 days later — send step-3 break-ups
+# Run both on the same day — they auto-coordinate, total stays ≤ 50
+python pipeline.py --send-only
 python pipeline.py --follow-up
 ```
 

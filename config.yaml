@@ -111,8 +111,16 @@ sources:
 # When enabled, `python pipeline.py --follow-up` checks for leads that
 # received a previous step and are due for the next one, then sends.
 # Mark replies manually: python pipeline.py --mark-replied user@example.com
+#
+# The combined daily_limit (below) is shared between new outreach and
+# follow-ups. follow_up_slots reserves a portion of that cap for follow-ups
+# each day — the rest goes to new outreach.
+# Example: daily_limit: 50, follow_up_slots: 15 → up to 35 new + 15 follow-ups/day.
+# If follow_up_slots is not set, follow-ups and new outreach compete for the
+# full daily_limit (follow-ups are sent first as they're higher priority).
 sequences:
   enabled: false
+  follow_up_slots: 10        # reserve this many daily slots for follow-ups
   steps:
     - step: 1
       delay_days: 0          # initial outreach — sent by --send-only

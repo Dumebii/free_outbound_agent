@@ -122,6 +122,18 @@ class LeadStore:
                     }
         return state
 
+    def sent_today_count(self) -> int:
+        """Count emails sent today (UTC) across all steps — used for shared daily cap."""
+        if not os.path.exists(self.sent_file):
+            return 0
+        today = datetime.now(timezone.utc).date().isoformat()
+        count = 0
+        with open(self.sent_file, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if row.get("sent_at", "").startswith(today):
+                    count += 1
+        return count
+
     def get_followup_due(
         self,
         all_leads: list[dict],
